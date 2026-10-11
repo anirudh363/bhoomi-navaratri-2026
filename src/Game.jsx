@@ -94,10 +94,14 @@ export default function Game() {
 
   const skip = () => {
     const name = uname.trim();
+    if (!name) {
+      setNameHint(true);
+      nameRef.current?.focus();
+      return;
+    }
     setGraded(null);
     setGuesses(emptyGuesses());
-    docId.current = null;
-    if (name) register(name, { status: "skipped", answers: [], score: null, answered: 0 });
+    register(name, { status: "skipped", answers: [], score: null, answered: 0 });
     show("result");
   };
 
@@ -180,7 +184,7 @@ export default function Game() {
                 }}
                 onKeyDown={(e) => e.key === "Enter" && begin()}
               />
-              {nameHint && <p className="hint">ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ · Please enter your name to play</p>}
+              {nameHint && <p className="hint">ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ · Please enter your name first</p>}
               <div className="stack">
                 <button className="btn big" onClick={begin}>
                   ಊಹಿಸಲು ಪ್ರಾರಂಭಿಸಿ · Start guessing
