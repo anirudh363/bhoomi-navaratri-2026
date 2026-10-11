@@ -174,7 +174,17 @@ const toImageMap = (s) => {
 
 export const fetchImages = async () => toImageMap(await getDocs(images));
 
-export const watchImages = (onData, onError) => onSnapshot(images, (s) => onData(toImageMap(s)), onError);
+/**
+ * Live photos for the admin panel. `pending` holds the gaade indexes whose shown photo exists only in
+ * this browser so far (not yet confirmed saved by the server).
+ */
+export const watchImages = (onData, onError) =>
+  onSnapshot(
+    images,
+    { includeMetadataChanges: true },
+    (s) => onData(toImageMap(s), new Set(s.docs.filter((d) => d.metadata.hasPendingWrites).map((d) => Number(d.id) - 1))),
+    onError
+  );
 
 export const saveImage = (k, image) =>
   setDoc(doc(db, "gaadeImages", String(k + 1)), { image, updatedAt: serverTimestamp() });

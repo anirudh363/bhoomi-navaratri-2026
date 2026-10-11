@@ -39,11 +39,14 @@ service cloud.firestore {
     }
 
     // Name registry: keeps player names unique. The game may look up one exact name (get) but
-    // cannot list them. A name is claimed in the same batch that creates the participant; writing
-    // to an existing name is an update, which only admins may do, so a taken name cannot be stolen.
+    // cannot list them. A name is claimed in the same batch that creates the participant. Writing to
+    // an existing name is an update, which nobody may do (not even admins, since an admin who is
+    // signed in on a device also plays the game with admin rights) — so a taken name cannot be
+    // claimed twice. Admins free a name by deleting it.
     match /names/{key} {
       allow get: if true;
-      allow list, update, delete: if isAdmin();
+      allow list, delete: if isAdmin();
+      allow update: if false;
       allow create: if isAdmin() || (
         request.resource.data.keys().hasOnly(['name', 'createdAt'])
         && request.resource.data.name is string

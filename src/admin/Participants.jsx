@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { answeredOf, needsReview } from "../lib/grading.js";
+import { nameKey } from "../lib/names.js";
 import { deleteParticipant } from "../lib/db.js";
 import { N, exportCsv, setOverride } from "./actions.js";
 
@@ -90,6 +91,13 @@ export default function Participants({ people, threshold, gaades }) {
   const [sort, setSort] = useState({ key: "createdAt", dir: -1 });
   const [open, setOpen] = useState(null);
 
+  // How many entries share each name (only possible for entries made before names were unique).
+  const nameCounts = useMemo(() => {
+    const m = new Map();
+    people.forEach((p) => p.name && m.set(nameKey(p.name), (m.get(nameKey(p.name)) || 0) + 1));
+    return m;
+  }, [people]);
+
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = people
@@ -175,7 +183,12 @@ export default function Participants({ people, threshold, gaades }) {
                   aria-expanded={open === p.id}
                 >
                   <td>
-                    <b>{p.name || "—"}</b>
+                    <b>{p.name || "—"}</b>{" "}
+                    {p.name && nameCounts.get(nameKey(p.name)) > 1 && (
+                      <span className="flag" title="Another entry has the same name — delete the one you don't want">
+                        same name
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className={`status ${p.status}`}>{STATUS_LABEL[p.status] || p.status}</span>

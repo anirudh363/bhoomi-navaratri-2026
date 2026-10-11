@@ -86,6 +86,7 @@ export default function Admin() {
   const [people, setPeople] = useState(null);
   const [grading, setGrading] = useState({});
   const [images, setImages] = useState({});
+  const [pendingImages, setPendingImages] = useState(new Set());
   const [gaades, setGaades] = useState({ list: DEFAULT_GAADES, seeded: N });
   const [names, setNames] = useState(null);
   const [error, setError] = useState("");
@@ -100,7 +101,10 @@ export default function Admin() {
     const unsubs = [
       watchParticipants(setPeople, onErr),
       watchGrading(setGrading, onErr),
-      watchImages(setImages, onErr),
+      watchImages((map, pending) => {
+        setImages(map);
+        setPendingImages(pending);
+      }, onErr),
       watchGaades(setGaades, onErr),
       watchNames(setNames, onErr),
     ];
@@ -182,6 +186,7 @@ export default function Admin() {
             grading={grading}
             hasGrading={hasGrading}
             images={images}
+            pendingImages={pendingImages}
             gaades={gaades.list}
             seeded={gaades.seeded}
             names={names}

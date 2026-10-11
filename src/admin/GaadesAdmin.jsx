@@ -79,8 +79,9 @@ function SeedPanel({ seeded, hasGrading }) {
   );
 }
 
-function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, stat }) {
+function GaadeCard({ k, gaade, image, pending, alternates, onSaveAlternates, onSaveText, stat }) {
   const [busy, setBusy] = useState("");
+  const [saved, setSaved] = useState(false);
   const [text, setText] = useState(alternates.join("\n"));
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -114,7 +115,16 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
   const upload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) await run("Uploading…", async () => saveImage(k, await compressImage(file)));
+    if (!file) return;
+    setSaved(false);
+    // Firestore shows the new photo straight away, but it only counts once the server confirms it.
+    const slow = setTimeout(() => setBusy("Still uploading… keep this page open and check the connection"), 20000);
+    const ok = await run("Uploading…", async () => saveImage(k, await compressImage(file)));
+    clearTimeout(slow);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    }
   };
 
   const remove = async () => {
@@ -139,6 +149,8 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
       <div className="ph">
         <span className="gnum">{k + 1}</span>
         {image ? <img src={image} alt={`Doll setup for gaade ${k + 1}`} /> : "🪆"}
+        {pending && <span className="img-state warn">Not saved yet</span>}
+        {saved && !pending && <span className="img-state ok">Saved ✓</span>}
       </div>
       <div className="body">
         {editing ? (
@@ -216,7 +228,7 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
   );
 }
 
-export default function GaadesAdmin({ people, grading, hasGrading, images, gaades, seeded, names, unregistered }) {
+export default function GaadesAdmin({ people, grading, hasGrading, images, pendingImages, gaades, seeded, names, unregistered }) {
   const saved = grading.threshold ?? DEFAULT_THRESHOLD;
   const [threshold, setThreshold] = useState(saved);
   const [msg, setMsg] = useState("");
@@ -302,6 +314,7 @@ export default function GaadesAdmin({ people, grading, hasGrading, images, gaade
               k={k}
               gaade={gaade}
               image={images[k]}
+              pending={pendingImages.has(k)}
               alternates={grading.alternates?.[k] || []}
               onSaveAlternates={saveAlternates}
               onSaveText={saveText}
