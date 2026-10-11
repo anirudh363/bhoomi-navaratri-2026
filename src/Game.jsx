@@ -114,11 +114,12 @@ export default function Game() {
   /** Validates the name, makes sure nobody has used it, and creates the participant. */
   /**
    * Validates the name and makes sure this person may use it:
-   * - their own name (remembered on this phone) → reuse their entry; Start resets it, Skip leaves it alone
+   * - their own name (remembered on this phone) → reuse their entry, replacing it with this newest game
+   *   (Start resets it to a fresh game, Skip marks it skipped)
    * - a name someone else has used → ask for more of their name
    * - a new name → create the entry and remember it on this phone
    */
-  const claimName = async (data, { skipping = false } = {}) => {
+  const claimName = async (data) => {
     if (checking) return false;
     const name = cleanName(uname);
     const problem = nameProblem(name);
@@ -133,8 +134,8 @@ export default function Game() {
       const mine = loadPlayer();
       if (mine?.id && mine.key === nameKey(name)) {
         try {
-          if (!skipping) await restartParticipant(mine.id, data);
-          docId.current = Promise.resolve(skipping ? null : mine.id);
+          await restartParticipant(mine.id, data);
+          docId.current = Promise.resolve(mine.id);
           setUname(name);
           setSaveFailed(false);
           return true;
@@ -177,7 +178,7 @@ export default function Game() {
   };
 
   const skip = async () => {
-    const ok = await claimName({ status: "skipped", answers: [], score: null, answered: 0 }, { skipping: true });
+    const ok = await claimName({ status: "skipped", answers: [], score: null, answered: 0 });
     if (!ok) return;
     setGraded(null);
     setGuesses(emptyGuesses());

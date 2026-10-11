@@ -86,7 +86,7 @@ export async function createParticipant(data) {
   return pRef.id;
 }
 
-/** "Play again": wipe the player's previous game so their record holds the newest one. */
+/** Play again / Skip with their own name: replace the player's previous game with the newest one. */
 export const restartParticipant = (id, data) =>
   updateDoc(doc(db, "participants", id), {
     ...data,

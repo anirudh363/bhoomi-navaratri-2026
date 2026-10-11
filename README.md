@@ -53,7 +53,7 @@ name (ignoring case, spacing and punctuation) does the game ask for their full n
 **One record per name, holding the newest game.** The phone that created an entry remembers it (in the browser's local
 storage). **Play again** on the answers page resets that entry (answers and score cleared, `attempt` +1) and goes
 straight back into the quiz. Typing the same name again on the same phone later does the same. Skip to answers with your
-own name just shows the answers and leaves your score alone. Entry ids are never stored anywhere public, so only that
+own name also replaces the entry (it becomes "skipped") — the newest action is always what is on record. Entry ids are never stored anywhere public, so only that
 phone (and admins) can reset an entry.
 
 A participant document is created as soon as someone presses **Start guessing** (name required), updated after every

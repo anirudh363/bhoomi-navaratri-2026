@@ -27,10 +27,11 @@ service cloud.firestore {
         && request.resource.data.answers.size() <= 16
       );
 
-      // While playing: started -> started/completed. Play again: any status -> started (reset).
+      // While playing: started -> started/completed. Play again / skip again: any status -> started
+      // or skipped (the newest game replaces the old one).
       allow update: if isAdmin() || (
-        request.resource.data.status in ['started', 'completed']
-        && (resource.data.status == 'started' || request.resource.data.status == 'started')
+        request.resource.data.status in ['started', 'completed', 'skipped']
+        && (resource.data.status == 'started' || request.resource.data.status in ['started', 'skipped'])
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['answers', 'score', 'answered', 'status', 'attempt', 'updatedAt', 'completedAt'])
         && request.resource.data.answers is list
