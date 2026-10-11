@@ -27,7 +27,8 @@ npm run test:grading # sanity-check the answer grader
 
 | | Players (not signed in) | Admins (the two Google accounts) | Anyone else signed in |
 |---|---|---|---|
-| Participants | create their own entry, update it only while still playing | read, edit, delete all | nothing |
+| Participants | create their own entry, update it while playing, reset it to play again | read, edit, delete all | nothing |
+| Name registry | look up one exact name, claim a new one | list, edit, delete | look up one exact name |
 | Gaades, photos, grading settings | read | read and edit | read |
 
 Any Google account can complete the sign-in step, but only the two listed emails get past it. Everyone else sees
@@ -40,15 +41,25 @@ To host it on Firebase: `npm run build` then `firebase deploy --only hosting` (c
 
 | Path | Contents |
 |---|---|
-| `participants/{autoId}` | `name`, `status` (`started` / `completed` / `skipped`), `answers[16]` = `{guess, auto, sim, override}`, `score`, `answered`, `createdAt`, `completedAt` |
+| `participants/{autoId}` | `name`, `status` (`started` / `completed` / `skipped`), `answers[16]` = `{guess, auto, sim, override}`, `score`, `answered`, `attempt` (times played), `createdAt`, `completedAt` |
+| `names/{name key}` | `name` — registry that keeps player names unique (key = lowercase name, punctuation and extra spaces removed) |
 | `gaades/{1..16}` | `answer` (Kannada), `iast` (transliteration), `order` — loaded by the Seed button, editable in admin |
 | `gaadeImages/{1..16}` | `image` — the photo for that gaade as a compressed JPEG data URL |
 | `config/grading` | `threshold` (pass mark) and `alternates` (extra accepted answers per gaade) |
 
+Players can enter any name; a first name alone is fine. Names are unique: only if someone has already played under that
+name (ignoring case, spacing and punctuation) does the game ask for their full name to tell them apart. Deleting a participant in the admin panel frees their name again.
+
+**One record per name, holding the newest game.** The phone that created an entry remembers it (in the browser's local
+storage). **Play again** on the answers page resets that entry (answers and score cleared, `attempt` +1) and goes
+straight back into the quiz. Typing the same name again on the same phone later does the same. Skip to answers with your
+own name just shows the answers and leaves your score alone. Entry ids are never stored anywhere public, so only that
+phone (and admins) can reset an entry.
+
 A participant document is created as soon as someone presses **Start guessing** (name required), updated after every
 answer (so people who stop halfway still show up as "in progress"), and marked `completed` with the final score on
 **Finish**. Someone who enters a name and presses **Skip to answers** is recorded as `skipped`. Each play is its own
-document, so two people with the same name never overwrite each other.
+document.
 
 Photos are stored in Firestore rather than Cloud Storage because new Storage buckets need the paid Blaze plan.
 The admin page resizes each photo in the browser so it fits Firestore's 1 MB document limit.

@@ -1,10 +1,11 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -16,12 +17,17 @@ import {
 import { db } from "../firebase.js";
 import { DEFAULT_GAADES, N } from "../data/gaades.js";
 import { DEFAULT_THRESHOLD } from "./grading.js";
+import { nameKey } from "./names.js";
 
 /*
  * Firestore layout
  *   participants/{autoId}  name, nameLower, status ("started" | "completed" | "skipped"),
  *                          answers[16] {guess, auto, sim, override}, score, answered, total,
- *                          createdAt, updatedAt, completedAt
+ *                          attempt (how many times they have played), createdAt, updatedAt, completedAt
+ *                          One record per name: "Play again" resets it, so it holds the newest game.
+ *                          The doc id is known only to the player's phone and to admins.
+ *   names/{nameKey}        name, createdAt — registry that keeps player names unique (no doc ids,
+ *                          because anyone may look a name up)
  *   gaades/{1..16}         answer (Kannada), iast (transliteration), order — seeded from the admin panel
  *   gaadeImages/{1..16}    image (compressed JPEG data URL), updatedAt
  *   config/grading         threshold, alternates { "0": [..], "1": [..] }
@@ -42,22 +48,91 @@ const withDates = (snap) => {
   };
 };
 
+export class NameTakenError extends Error {
+  constructor(name) {
+    super(`The name "${name}" is already taken`);
+    this.code = "name-taken";
+  }
+}
+
+const nameRef = (name) => doc(db, "names", nameKey(name));
+
+/** Players may look up one exact name, but cannot list the registry. */
+export const isNameTaken = async (name) => (await getDoc(nameRef(name))).exists();
+
+/**
+ * Creates the participant and claims the name in one atomic write. If the name was claimed in the
+ * meantime the rules reject the whole batch (a second write to an existing name counts as an update).
+ */
 export async function createParticipant(data) {
-  const ref = await addDoc(participants, {
+  const pRef = doc(participants);
+  const batch = writeBatch(db);
+  batch.set(nameRef(data.name), { name: data.name, createdAt: serverTimestamp() });
+  batch.set(pRef, {
     ...data,
-    nameLower: (data.name || "").toLowerCase(),
+    attempt: 1,
+    nameLower: data.name.toLowerCase(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  try {
+    await batch.commit();
+  } catch (e) {
+    if (e.code === "permission-denied" && (await isNameTaken(data.name).catch(() => false))) {
+      throw new NameTakenError(data.name);
+    }
+    throw e;
+  }
+  return pRef.id;
 }
+
+/** "Play again": wipe the player's previous game so their record holds the newest one. */
+export const restartParticipant = (id, data) =>
+  updateDoc(doc(db, "participants", id), {
+    ...data,
+    attempt: increment(1),
+    completedAt: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
 
 export function updateParticipant(id, data) {
   const extra = data.status === "completed" ? { completedAt: serverTimestamp() } : {};
   return updateDoc(doc(db, "participants", id), { ...data, ...extra, updatedAt: serverTimestamp() });
 }
 
-export const deleteParticipant = (id) => deleteDoc(doc(db, "participants", id));
+/** Deletes the participant and frees their name (unless an older duplicate entry still uses it). */
+export async function deleteParticipant(p, people = []) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "participants", p.id));
+  const key = p.name ? nameKey(p.name) : "";
+  if (key && !people.some((o) => o.id !== p.id && o.name && nameKey(o.name) === key)) batch.delete(nameRef(p.name));
+  await batch.commit();
+}
+
+export const watchNames = (onData, onError) =>
+  onSnapshot(collection(db, "names"), (s) => onData(new Set(s.docs.map((d) => d.id))), onError);
+
+/** Adds registry entries for participants who played before the registry existed (oldest entry wins). */
+export async function registerExistingNames(people, registered) {
+  const seen = new Set(registered);
+  const missing = [];
+  [...people]
+    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+    .forEach((p) => {
+      const key = p.name ? nameKey(p.name) : "";
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      missing.push(p);
+    });
+  for (let k = 0; k < missing.length; k += 450) {
+    const batch = writeBatch(db);
+    missing.slice(k, k + 450).forEach((p) =>
+      batch.set(nameRef(p.name), { name: p.name, createdAt: serverTimestamp() })
+    );
+    await batch.commit();
+  }
+  return missing.length;
+}
 
 export function watchParticipants(onData, onError) {
   return onSnapshot(

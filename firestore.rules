@@ -11,28 +11,44 @@ service cloud.firestore {
         && request.auth.token.email in ['bhoomiarun5@gmail.com', 'anirudhsandilya363@gmail.com'];
     }
 
-    // Players are not signed in. They may create their own entry and keep updating it while
-    // playing, but can never list or read anyone's entries (so other doc ids stay unknown).
+    // Players are not signed in. They may create their own entry, update it while playing, and
+    // reset it to play again. They can never list or read anyone's entries, and doc ids are not
+    // stored anywhere public, so only the phone that created an entry knows its id.
     match /participants/{id} {
       allow read, delete: if isAdmin();
 
       allow create: if isAdmin() || (
-        request.resource.data.keys().hasOnly(['name', 'nameLower', 'status', 'answers', 'score', 'answered', 'total', 'createdAt', 'updatedAt'])
+        request.resource.data.keys().hasOnly(['name', 'nameLower', 'status', 'answers', 'score', 'answered', 'total', 'attempt', 'createdAt', 'updatedAt'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 30
+        && request.resource.data.name.size() <= 40
         && request.resource.data.status in ['started', 'skipped']
         && request.resource.data.answers is list
         && request.resource.data.answers.size() <= 16
       );
 
+      // While playing: started -> started/completed. Play again: any status -> started (reset).
       allow update: if isAdmin() || (
-        resource.data.status == 'started'
-        && request.resource.data.status in ['started', 'completed']
+        request.resource.data.status in ['started', 'completed']
+        && (resource.data.status == 'started' || request.resource.data.status == 'started')
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['answers', 'score', 'answered', 'status', 'updatedAt', 'completedAt'])
+             .hasOnly(['answers', 'score', 'answered', 'status', 'attempt', 'updatedAt', 'completedAt'])
         && request.resource.data.answers is list
         && request.resource.data.answers.size() <= 16
+      );
+    }
+
+    // Name registry: keeps player names unique. The game may look up one exact name (get) but
+    // cannot list them. A name is claimed in the same batch that creates the participant; writing
+    // to an existing name is an update, which only admins may do, so a taken name cannot be stolen.
+    match /names/{key} {
+      allow get: if true;
+      allow list, update, delete: if isAdmin();
+      allow create: if isAdmin() || (
+        request.resource.data.keys().hasOnly(['name', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
       );
     }
 

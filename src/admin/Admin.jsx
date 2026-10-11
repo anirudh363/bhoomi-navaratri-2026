@@ -3,7 +3,8 @@ import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedi
 import { auth } from "../firebase.js";
 import { DEFAULT_GAADES, N } from "../data/gaades.js";
 import { ADMIN_EMAILS, isAdminEmail } from "../lib/admins.js";
-import { watchGaades, watchGrading, watchImages, watchParticipants } from "../lib/db.js";
+import { watchGaades, watchGrading, watchImages, watchNames, watchParticipants } from "../lib/db.js";
+import { nameKey } from "../lib/names.js";
 import { DEFAULT_THRESHOLD, needsReview } from "../lib/grading.js";
 import Dashboard from "./Dashboard.jsx";
 import Participants from "./Participants.jsx";
@@ -86,6 +87,7 @@ export default function Admin() {
   const [grading, setGrading] = useState({});
   const [images, setImages] = useState({});
   const [gaades, setGaades] = useState({ list: DEFAULT_GAADES, seeded: N });
+  const [names, setNames] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
@@ -100,6 +102,7 @@ export default function Admin() {
       watchGrading(setGrading, onErr),
       watchImages(setImages, onErr),
       watchGaades(setGaades, onErr),
+      watchNames(setNames, onErr),
     ];
     return () => {
       unsubs.forEach((u) => u());
@@ -110,7 +113,11 @@ export default function Admin() {
 
   const threshold = grading.threshold ?? DEFAULT_THRESHOLD;
   const hasGrading = grading.threshold != null;
-  const needsSeed = !!people && (gaades.seeded < N || !hasGrading);
+  const unregistered = useMemo(() => {
+    if (!people || !names) return 0;
+    return new Set(people.map((p) => (p.name ? nameKey(p.name) : "")).filter((k) => k && !names.has(k))).size;
+  }, [people, names]);
+  const needsSeed = !!people && (gaades.seeded < N || !hasGrading || unregistered > 0);
   const reviewCount = useMemo(
     () => (people || []).reduce((n, p) => n + (p.answers || []).filter((a) => needsReview(a, threshold)).length, 0),
     [people, threshold]
@@ -155,7 +162,7 @@ export default function Admin() {
         )}
         {needsSeed && tab !== "gaades" && (
           <div className="note seed-note">
-            <span>The gaades and grading settings are not in Firestore yet.</span>
+            <span>Some data still needs to be set up in Firestore (gaades, grading settings or the name list).</span>
             <button className="btn sm" onClick={() => setTab("gaades")}>
               Go to Seed
             </button>
@@ -177,6 +184,8 @@ export default function Admin() {
             images={images}
             gaades={gaades.list}
             seeded={gaades.seeded}
+            names={names}
+            unregistered={unregistered}
           />
         )}
       </div>

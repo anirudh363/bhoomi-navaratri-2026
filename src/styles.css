@@ -205,3 +205,5 @@ svg.chart text.val{fill:var(--ink);font-weight:700}
 .adm .gaade-kn{font-family:'Noto Serif Kannada',serif;font-weight:600;line-height:1.55;color:var(--maroon)}
 .adm .gaade-iast{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:.88em;line-height:1.4;color:#5B6530}
 .adm textarea.gaade-kn,.adm textarea.gaade-iast{font-size:.95rem}
+.checking{margin:.6rem 0 0;font-weight:700;color:#5B6530;font-size:.95rem}
+.replay-note{margin:.8rem auto 0;max-width:46ch;font-size:.9rem;font-weight:600;color:var(--ink-2)}

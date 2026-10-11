@@ -1,9 +1,46 @@
 import { useEffect, useState } from "react";
 import { N } from "../data/gaades.js";
 import { DEFAULT_THRESHOLD, isCorrect } from "../lib/grading.js";
-import { deleteImage, saveGaade, saveGrading, saveImage, seedDefaults } from "../lib/db.js";
+import { deleteImage, registerExistingNames, saveGaade, saveGrading, saveImage, seedDefaults } from "../lib/db.js";
 import { compressImage } from "../lib/image.js";
 import { regradeAll } from "./actions.js";
+
+function NamesSeed({ people, names, unregistered }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const run = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const n = await registerExistingNames(people, names || new Set());
+      setMsg(`Registered ${n} name${n === 1 ? "" : "s"}.`);
+    } catch (e) {
+      setMsg("Failed: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className={unregistered ? "panel seed-needed" : "panel"}>
+      <h3>Player names</h3>
+      <p className="desc">
+        {unregistered
+          ? `${unregistered} name${unregistered === 1 ? " was" : "s were"} used before duplicate-name checking existed. Click to add them, so new players cannot reuse them. Where a name was used more than once, the earliest player keeps it.`
+          : "Every player name is registered, so new players cannot reuse an existing name. Deleting a participant frees their name."}
+      </p>
+      {(unregistered > 0 || msg) && (
+        <div className="toolbar" style={{ marginBottom: 0 }}>
+          {unregistered > 0 && (
+            <button className="btn" onClick={run} disabled={busy || !names}>
+              {busy ? "Registering…" : "Register existing names"}
+            </button>
+          )}
+          {msg && <span style={{ fontWeight: 700 }}>{msg}</span>}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function SeedPanel({ seeded, hasGrading }) {
   const [busy, setBusy] = useState(false);
@@ -179,7 +216,7 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
   );
 }
 
-export default function GaadesAdmin({ people, grading, hasGrading, images, gaades, seeded }) {
+export default function GaadesAdmin({ people, grading, hasGrading, images, gaades, seeded, names, unregistered }) {
   const saved = grading.threshold ?? DEFAULT_THRESHOLD;
   const [threshold, setThreshold] = useState(saved);
   const [msg, setMsg] = useState("");
@@ -218,6 +255,7 @@ export default function GaadesAdmin({ people, grading, hasGrading, images, gaade
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <SeedPanel seeded={seeded} hasGrading={hasGrading} />
+      <NamesSeed people={people} names={names} unregistered={unregistered} />
 
       <section className="panel">
         <h3>Grading</h3>

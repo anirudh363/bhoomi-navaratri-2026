@@ -78,8 +78,9 @@ const COLS = [
   ["status", "Status"],
   ["score", "Score", true],
   ["answered", "Answered", true],
+  ["attempt", "Plays", true],
   ["review", "To review", true],
-  ["createdAt", "Started"],
+  ["createdAt", "First played"],
   ["completedAt", "Finished"],
 ];
 
@@ -114,9 +115,9 @@ export default function Participants({ people, threshold, gaades }) {
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === "name" ? 1 : -1 }));
 
   const remove = async (p) => {
-    if (!confirm(`Delete ${p.name}'s entry? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${p.name}'s entry? This cannot be undone, and the name becomes free to use again.`)) return;
     try {
-      await deleteParticipant(p.id);
+      await deleteParticipant(p, people);
     } catch (e) {
       alert("Could not delete: " + e.message);
     }
@@ -181,6 +182,7 @@ export default function Participants({ people, threshold, gaades }) {
                   </td>
                   <td className="num-c">{p.status === "skipped" ? "—" : `${p.score ?? 0} / ${N}`}</td>
                   <td className="num-c">{p.answeredN}</td>
+                  <td className="num-c">{p.attempt ?? 1}</td>
                   <td className="num-c">{p.reviewN ? <span className="flag">{p.reviewN}</span> : ""}</td>
                   <td className="muted">{fmt(p.createdAt)}</td>
                   <td className="muted">{fmt(p.completedAt)}</td>

@@ -3,15 +3,61 @@ import hero from "./assets/golu-hero.jpg";
 import goddess from "./assets/goddess-nandi.jpg";
 import { DEFAULT_GAADES, N } from "./data/gaades.js";
 import { answeredOf, gradeAll, isCorrect, scoreOf } from "./lib/grading.js";
-import { createParticipant, fetchGaades, fetchGrading, fetchImages, updateParticipant } from "./lib/db.js";
+import {
+  createParticipant,
+  fetchGaades,
+  fetchGrading,
+  fetchImages,
+  isNameTaken,
+  restartParticipant,
+  updateParticipant,
+} from "./lib/db.js";
+import { NAME_MAX, cleanName, nameKey, nameProblem } from "./lib/names.js";
 import { Diyas, Frame, Rangoli } from "./components/Decor.jsx";
 
 const emptyGuesses = () => Array(N).fill("");
 
+// This phone's own entry { id, key, name }, so the same person can play again under their name.
+const PLAYER_KEY = "golu-player";
+const loadPlayer = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PLAYER_KEY)) || null;
+  } catch {
+    return null;
+  }
+};
+const savePlayer = (p) => {
+  try {
+    if (p) localStorage.setItem(PLAYER_KEY, JSON.stringify(p));
+    else localStorage.removeItem(PLAYER_KEY);
+  } catch {
+    /* storage unavailable: replay under the same name works only until the page is reloaded */
+  }
+};
+// Firestore error codes meaning "your old entry is gone" (e.g. an admin deleted it).
+const isGone = (e) => e?.code === "not-found" || e?.code === "permission-denied";
+
+function NameHint({ hint, name }) {
+  if (hint === "empty") return <p className="hint">ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ · Please enter your name first</p>;
+  if (hint === "taken")
+    return (
+      <p className="hint">
+        “{name}” ಹೆಸರಿನಲ್ಲಿ ಈಗಾಗಲೇ ಒಬ್ಬರು ಆಡಿದ್ದಾರೆ. ಗುರುತಿಸಲು ನಿಮ್ಮ ಪೂರ್ಣ ಹೆಸರು ಬರೆಯಿರಿ.
+        <br />
+        Someone has already played as “{name}”. Please enter your full name (for example with your surname) so we can tell
+        you apart.
+      </p>
+    );
+  if (hint === "offline")
+    return <p className="hint">ಸಂಪರ್ಕ ಸಮಸ್ಯೆ, ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ · Could not check your name — please check the connection and try again.</p>;
+  return null;
+}
+
 export default function Game() {
   const [page, setPage] = useState("home");
-  const [uname, setUname] = useState("");
-  const [nameHint, setNameHint] = useState(false);
+  const [uname, setUname] = useState(() => loadPlayer()?.name || "");
+  const [nameHint, setNameHint] = useState(null);
+  const [checking, setChecking] = useState(false);
   const [i, setI] = useState(0);
   const [guesses, setGuesses] = useState(emptyGuesses);
   const [graded, setGraded] = useState(null);
@@ -65,43 +111,76 @@ export default function Game() {
     setSaveFailed(true);
   };
 
-  const register = (name, data) => {
-    setSaveFailed(false);
-    docId.current = createParticipant({ name, total: N, ...data });
-    docId.current.catch(fail);
+  /** Validates the name, makes sure nobody has used it, and creates the participant. */
+  /**
+   * Validates the name and makes sure this person may use it:
+   * - their own name (remembered on this phone) → reuse their entry; Start resets it, Skip leaves it alone
+   * - a name someone else has used → ask for more of their name
+   * - a new name → create the entry and remember it on this phone
+   */
+  const claimName = async (data, { skipping = false } = {}) => {
+    if (checking) return false;
+    const name = cleanName(uname);
+    const problem = nameProblem(name);
+    if (problem) {
+      setNameHint(problem);
+      nameRef.current?.focus();
+      return false;
+    }
+    setChecking(true);
+    setNameHint(null);
+    try {
+      const mine = loadPlayer();
+      if (mine?.id && mine.key === nameKey(name)) {
+        try {
+          if (!skipping) await restartParticipant(mine.id, data);
+          docId.current = Promise.resolve(skipping ? null : mine.id);
+          setUname(name);
+          setSaveFailed(false);
+          return true;
+        } catch (e) {
+          if (!isGone(e)) throw e;
+          savePlayer(null);
+        }
+      }
+      if (await isNameTaken(name)) throw Object.assign(new Error("taken"), { code: "name-taken" });
+      const id = await createParticipant({ name, total: N, ...data });
+      savePlayer({ id, key: nameKey(name), name });
+      docId.current = Promise.resolve(id);
+      setUname(name);
+      setSaveFailed(false);
+      return true;
+    } catch (e) {
+      console.error("Name check failed", e);
+      setNameHint(e.code === "name-taken" ? "taken" : "offline");
+      nameRef.current?.focus();
+      return false;
+    } finally {
+      setChecking(false);
+    }
   };
 
   const persist = (data) => {
     const pending = docId.current;
     if (!pending) return;
-    pending.then((id) => updateParticipant(id, data)).catch(fail);
+    pending.then((id) => id && updateParticipant(id, data)).catch(fail);
   };
 
-  const begin = () => {
-    const name = uname.trim();
-    if (!name) {
-      setNameHint(true);
-      nameRef.current?.focus();
-      return;
-    }
+  const begin = async () => {
     const fresh = emptyGuesses();
+    const ok = await claimName({ status: "started", answers: gradeAll(fresh, grading, [], gaades), score: 0, answered: 0 });
+    if (!ok) return;
     setGuesses(fresh);
     setGraded(null);
     setI(0);
-    register(name, { status: "started", answers: gradeAll(fresh, grading, [], gaades), score: 0, answered: 0 });
     show("quiz");
   };
 
-  const skip = () => {
-    const name = uname.trim();
-    if (!name) {
-      setNameHint(true);
-      nameRef.current?.focus();
-      return;
-    }
+  const skip = async () => {
+    const ok = await claimName({ status: "skipped", answers: [], score: null, answered: 0 }, { skipping: true });
+    if (!ok) return;
     setGraded(null);
     setGuesses(emptyGuesses());
-    register(name, { status: "skipped", answers: [], score: null, answered: 0 });
     show("result");
   };
 
@@ -125,14 +204,41 @@ export default function Game() {
     if (i > 0) setI(i - 1);
   };
 
-  const again = () => {
+  /** Play again under the same name: their entry is reset, so it always holds their newest game. */
+  const again = async () => {
+    if (checking) return;
+    const mine = loadPlayer();
+    const fresh = emptyGuesses();
+    setNameHint(null);
+    setSaveFailed(false);
+    if (mine?.id) {
+      setChecking(true);
+      try {
+        await restartParticipant(mine.id, { status: "started", answers: gradeAll(fresh, grading, [], gaades), score: 0, answered: 0 });
+        docId.current = Promise.resolve(mine.id);
+        setUname(mine.name);
+        setGuesses(fresh);
+        setGraded(null);
+        setI(0);
+        show("quiz");
+        return;
+      } catch (e) {
+        console.error("Play again failed", e);
+        if (isGone(e)) savePlayer(null);
+        else {
+          setSaveFailed(true);
+          return;
+        }
+      } finally {
+        setChecking(false);
+      }
+    }
+    // No entry on this phone any more (e.g. deleted by an admin): start again from the name page.
     docId.current = null;
-    setGuesses(emptyGuesses());
+    setGuesses(fresh);
     setGraded(null);
     setUname("");
-    setNameHint(false);
-    setSaveFailed(false);
-    show("home");
+    show("name");
   };
 
   const setGuess = (v) => setGuesses((g) => g.map((x, k) => (k === i ? v : x)));
@@ -172,24 +278,25 @@ export default function Game() {
               <input
                 ref={nameRef}
                 type="text"
-                maxLength={30}
+                maxLength={NAME_MAX}
                 autoComplete="off"
                 placeholder="ನಿಮ್ಮ ಹೆಸರು · Your name"
                 aria-label="Your name"
-                aria-invalid={nameHint}
+                aria-invalid={!!nameHint}
                 value={uname}
                 onChange={(e) => {
                   setUname(e.target.value);
-                  setNameHint(false);
+                  setNameHint(null);
                 }}
                 onKeyDown={(e) => e.key === "Enter" && begin()}
               />
-              {nameHint && <p className="hint">ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ · Please enter your name first</p>}
+              <NameHint hint={nameHint} name={cleanName(uname)} />
+              {checking && <p className="checking">ಹೆಸರು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ… · Checking your name…</p>}
               <div className="stack">
-                <button className="btn big" onClick={begin}>
+                <button className="btn big" onClick={begin} disabled={checking}>
                   ಊಹಿಸಲು ಪ್ರಾರಂಭಿಸಿ · Start guessing
                 </button>
-                <button className="btn ghost" onClick={skip}>
+                <button className="btn ghost" onClick={skip} disabled={checking}>
                   ಉತ್ತರಗಳನ್ನು ನೋಡಿ · Skip to answers
                 </button>
               </div>
@@ -276,9 +383,12 @@ export default function Game() {
                 );
               })}
             </div>
-            <button className="btn big" onClick={again}>
+            <button className="btn big" onClick={again} disabled={checking}>
               ಮತ್ತೆ ಆಡಿ · Play again
             </button>
+            <p className="replay-note">
+              ಮತ್ತೆ ಆಡಿದರೆ ನಿಮ್ಮ ಹೊಸ ಅಂಕ ಮಾತ್ರ ಉಳಿಯುತ್ತದೆ · Playing again replaces your previous score with the new one.
+            </p>
           </section>
         )}
       </main>
