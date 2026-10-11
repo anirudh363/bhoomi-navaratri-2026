@@ -200,3 +200,8 @@ svg.chart text.val{fill:var(--ink);font-weight:700}
 .fld{display:flex;flex-direction:column;gap:.25rem;font-size:.85rem;font-weight:700;color:var(--ink-2)}
 .seed-needed{border-color:var(--kumkum);box-shadow:0 0 0 3px #FBE4E7}
 .seed-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem;font-weight:700}
+/* Gaade text in the admin panel uses the same type as the players' answer cards (.ans / .iast).
+   Georgia carries the IAST marks (ā ē ḷ ṭ ṃ …) correctly; Baloo Tamma 2 does not. */
+.adm .gaade-kn{font-family:'Noto Serif Kannada',serif;font-weight:600;line-height:1.55;color:var(--maroon)}
+.adm .gaade-iast{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:.88em;line-height:1.4;color:#5B6530}
+.adm textarea.gaade-kn,.adm textarea.gaade-iast{font-size:.95rem}

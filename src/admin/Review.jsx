@@ -62,7 +62,7 @@ export default function Review({ people, threshold, gaades }) {
                 </div>
                 <div className={`guess ${/[ಀ-೿]/.test(a.guess) ? "kn-t" : ""}`}>{a.guess}</div>
                 <div className="target">
-                  <span className="kn-t">{gaades[k].answer}</span> · <i>{gaades[k].iast}</i>
+                  <span className="gaade-kn">{gaades[k].answer}</span> · <span className="gaade-iast">{gaades[k].iast}</span>
                 </div>
               </div>
               <OverrideToggle person={p} k={k} />

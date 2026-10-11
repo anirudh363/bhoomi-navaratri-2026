@@ -59,10 +59,8 @@ function AnswerTable({ person, threshold, gaades }) {
                   {needsReview(a, threshold) && <span className="flag">review</span>}
                 </td>
                 <td>
-                  <div className="kn-t">{ans}</div>
-                  <div className="muted" style={{ fontSize: ".82rem" }}>
-                    {iast}
-                  </div>
+                  <div className="gaade-kn">{ans}</div>
+                  <div className="gaade-iast">{iast}</div>
                 </td>
                 <td className="num-c">{a.guess ? `${Math.round((a.sim || 0) * 100)}%` : ""}</td>
                 <td>{a.guess ? <OverrideToggle person={person} k={k} /> : <span className="ok-n">✗</span>}</td>

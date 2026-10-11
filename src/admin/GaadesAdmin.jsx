@@ -108,11 +108,11 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
           <>
             <label className="fld">
               Gaade (Kannada)
-              <textarea className="kn-t" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+              <textarea className="gaade-kn" value={answer} onChange={(e) => setAnswer(e.target.value)} />
             </label>
             <label className="fld">
               Transliteration
-              <textarea value={iast} onChange={(e) => setIast(e.target.value)} />
+              <textarea className="gaade-iast" value={iast} onChange={(e) => setIast(e.target.value)} />
             </label>
             <div className="acts">
               <button className="btn sm" onClick={saveText} disabled={!!busy}>
@@ -125,12 +125,8 @@ function GaadeCard({ k, gaade, image, alternates, onSaveAlternates, onSaveText, 
           </>
         ) : (
           <>
-            <div className="kn-t" style={{ color: "var(--maroon)", lineHeight: 1.5 }}>
-              {gaade.answer}
-            </div>
-            <div className="muted" style={{ fontStyle: "italic", fontSize: ".88rem" }}>
-              {gaade.iast}
-            </div>
+            <div className="gaade-kn">{gaade.answer}</div>
+            <div className="gaade-iast">{gaade.iast}</div>
           </>
         )}
         <div className="stat">{stat}</div>
